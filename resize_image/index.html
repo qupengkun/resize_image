@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>大静静专用压缩工具</title>
+		<link type="text/css" href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
+		<link rel="stylesheet" type="text/css" href="js/fileinput/css/fileinput.min.css" />
+		<style type="text/css">
+			/*添加背景图片 **/
+			body {
+				/*background-image: url(img/1.jpg);
+				background-attachment:fixed;
+			    background-repeat:no-repeat;
+			    background-size:cover;
+			    -moz-background-size:cover;
+			    -webkit-background-size:cover;*/
+			}
+		</style>
+	</head>
+
+	<body>
+		<!--<div class="content">
+			<div class="module" style="margin-left: 200px;">
+				<div class="module-head">
+					<h3><a>上传</a></h3>
+				</div>
+				<div class="module-body fileinput-div">
+					<input type="file" id="choose" accept="image/*" multiple> //multiple属性允许上传多张
+					<input type="file" id="choose" accept="image/*" webkitdirectory> //文件夹
+				</div>
+			</div>
+		</div>-->
+
+		<div class="content" style="margin-left: 100px; margin-right: 100px; margin-top: 50px;">
+			<input type="file" class="resize" name="test" multiple />
+		</div>
+
+		<script src="js/jquery-2.0.0.min.js"></script>
+		<script src="bootstrap/js/bootstrap.min.js" type="text/javascript" charset="utf-8"></script>
+		<script type="text/javascript" src="js/jszip.js"></script>
+		<script type="text/javascript" src="js/FileSaver.js"></script>
+		<script src="js/fileinput/js/fileinput.min.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/fileinput/js/fileinput_locale_zh.js" type="text/javascript" charset="utf-8"></script>
+
+		<script type="text/javascript">
+			$(function() {
+				$('.resize').fileinput({
+					language: 'zh',
+					uploadUrl: location.pathname + 'upload/',
+					showCaption: false,
+					showUpload: false,
+					showRemove: false,
+					showClose: false,
+					layoutTemplates: {
+						actionDelete: '',
+						actionUpload: ''
+					},
+					browseClass: 'btn btn-primary',
+					maxFileCount: 50, //TODO 表示允许同时上传的最大文件个数
+					allowedFileExtensions: ['jpg', 'gif', 'png'] //接收的文件后缀
+				}).on('filebatchselected', function(event, files1) { //选中文件事件
+					if(!files1.length) return; // this.files获取上传图片
+					var files = Array.prototype.slice.call(files1); // 转换为数组
+					var i = 1;
+					var sortArr = [];
+					files.forEach(function(file, i) { // 图片文件循环
+						if(!/\/(?:jpeg|png|gif)/i.test(file.type)) return; // file.type获取图片格式
+						var reader = new FileReader(); // FileReader
+						var li = document.createElement("li"); // 对象允许Web应用程序异步读取存储在用户计算机上的文件（或原始数据缓冲区）的内容
+						var size = file.size / 1024 > 1024 ? (~~(10 * file.size / 1024 / 1024)) / 10 + "MB" : ~~(file.size / 1024) + "KB"; //file.size图片大小，~~转换数字整形
+						li.innerHTML = '<div class="img"><img src=""/></div>';
+
+						$(".img-list").prepend($(li)); //图片显示页面上
+						reader.onload = function() { //读取操作成功
+							var result = this.result; //文件内容，读取操作完成后，此属性才有效
+							var img = new Image(); //Image对象
+							img.src = result;
+							$(li).find('img').attr('src', result);
+							//如果图片大小小于100kb，则直接上传
+							if(result.length <= 100 * 1024) { //图片小于100kb直接上传
+								img = null;
+								// upload(result, file.type, $(li));
+								return;
+							}
+							if(img.complete) { //图像在浏览器加载完成
+								callback();
+							} else {
+								img.onload = callback; //当图像装载完毕
+							}
+
+							function callback() {
+								var data = compress(img, file.type); //进行压缩操作
+
+								imgOldNames.push(file.name);
+								imgBase64.push(data);
+								sortArr.push(i);
+								//							
+								//							//最后一个时
+								if(sortArr.length == files.length) {
+									//packageZip(imgBase64);
+									saveImage(imgBase64, imgOldNames);
+								}
+
+								img = null;
+							}
+						};
+						reader.readAsDataURL(file); //读取file对象
+						i++;
+					})
+				});
+			});
+		</script>
+
+		<script>
+			var imgBase64 = [];
+			var imgOldNames = [];
+
+			$("#choose").change(function() { // 上传事件触发
+				if(!this.files.length) return; // this.files获取上传图片
+				var files = Array.prototype.slice.call(this.files); // 转换为数组
+				var i = 1;
+				var sortArr = [];
+				files.forEach(function(file, i) { // 图片文件循环
+					if(!/\/(?:jpeg|png|gif)/i.test(file.type)) return; // file.type获取图片格式
+					var reader = new FileReader(); // FileReader
+					var li = document.createElement("li"); // 对象允许Web应用程序异步读取存储在用户计算机上的文件（或原始数据缓冲区）的内容
+					var size = file.size / 1024 > 1024 ? (~~(10 * file.size / 1024 / 1024)) / 10 + "MB" : ~~(file.size / 1024) + "KB"; //file.size图片大小，~~转换数字整形
+					li.innerHTML = '<div class="img"><img src=""/></div>';
+
+					$(".img-list").prepend($(li)); //图片显示页面上
+					reader.onload = function() { //读取操作成功
+						var result = this.result; //文件内容，读取操作完成后，此属性才有效
+						var img = new Image(); //Image对象
+						img.src = result;
+						$(li).find('img').attr('src', result);
+						//如果图片大小小于100kb，则直接上传
+						if(result.length <= 100 * 1024) { //图片小于100kb直接上传
+							img = null;
+							// upload(result, file.type, $(li));
+							return;
+						}
+						if(img.complete) { //图像在浏览器加载完成
+							callback();
+						} else {
+							img.onload = callback; //当图像装载完毕
+						}
+
+						function callback() {
+							var data = compress(img, file.type); //进行压缩操作
+
+							imgOldNames.push(file.name);
+							imgBase64.push(data);
+							sortArr.push(i);
+							//							
+							//							//最后一个时
+							if(sortArr.length == files.length) {
+								//packageZip(imgBase64);
+								saveImage(imgBase64, imgOldNames);
+							}
+
+							img = null;
+						}
+					};
+					reader.readAsDataURL(file); //读取file对象
+					i++;
+				})
+			});
+
+			/**
+			 * 图片压缩
+			 * @param {Object} img 图片
+			 * @param {Object} type 图片类型
+			 * @param {Object} quality 图片质量0-1
+			 */
+			function compress(img, type, quality) {
+				var canvas = document.createElement("canvas"); //新建画布
+				var ctx = canvas.getContext('2d'); //指定二维绘图
+				var initSize = img.src.length;
+				var width = img.width;
+				var height = img.height;
+
+				var ratio;
+				if((ratio = width * height / 400000) > 1) { //图片大小大于40w像素则进行压缩
+					ratio = Math.sqrt(ratio); //返回正平方根double值
+					width /= ratio;
+					height /= ratio;
+				} else {
+					ratio = 1;
+				}
+				canvas.width = width;
+				canvas.height = height;
+				ctx.fillStyle = "#fff"; //铺底色
+				ctx.fillRect(0, 0, canvas.width, canvas.height); //绘制“被填充”矩形
+				//如果图片像素大于100万则使用瓦片绘制
+				var count;
+				if((count = width * height / 100000) > 1) {
+					var tCanvas = document.createElement("canvas");
+					var tctx = tCanvas.getContext("2d");
+					count = ~~(Math.sqrt(count) + 1); //计算要分成多少块瓦片
+					//计算每块瓦片的宽和高
+					var nw = ~~(width / count);
+					var nh = ~~(height / count);
+					tCanvas.width = nw;
+					tCanvas.height = nh;
+					for(var i = 0; i < count; i++) {
+						for(var j = 0; j < count; j++) {
+							tctx.drawImage(img, i * nw * ratio, j * nh * ratio, nw * ratio, nh * ratio, 0, 0, nw, nh);
+							ctx.drawImage(tCanvas, i * nw, j * nh, nw, nh);
+						}
+					}
+				} else {
+					ctx.drawImage(img, 0, 0, width, height);
+				}
+
+				//类型，默认jpg
+				type = type || 'image/jpeg';
+				//TODO 图片质量，可选0-1
+				quality = quality || 0.92;
+
+				var ndata = canvas.toDataURL(type, quality);
+				tCanvas.width = tCanvas.height = canvas.width = canvas.height = 0;
+				ndata = ndata.replace(/^data:image\/(png|jpg|jpeg);base64,/, "");
+				return ndata;
+			}
+
+			/**
+			 * 将某个canvas保存为图片
+			 * @param canvasObjToUri base64图片
+			 * @param imgOldNames 图片原名称 如 1.png
+			 * @param quality 图片质量，可选0-1
+			 */
+			function saveImage(canvasObjToUri, imgOldNames, quality) {
+				if(!canvasObjToUri) {
+					return;
+				}
+
+				var zip = new JSZip();
+
+				//如需要加入文档，可放开此注释
+				//zip.file("readme.txt", "压缩后图片\n");
+				var img = zip.folder("images");
+
+				for(var index in canvasObjToUri) {
+					img.file(imgOldNames[index], canvasObjToUri[index], {
+						base64: true
+					});
+
+				}
+				zip.generateAsync({
+					type: "blob"
+				}).then(function(content) {
+					// see FileSaver.js
+					saveAs(content, "images.zip");
+				});
+			}
+		</script>
+	</body>
